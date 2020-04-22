@@ -1,5 +1,6 @@
 package org.opencv.android;
 
+import java.io.FileOutputStream;
 import java.util.List;
 
 import android.content.Context;
@@ -27,7 +28,7 @@ import org.opencv.imgproc.Imgproc;
  * When frame is delivered via callback from Camera - it processed via OpenCV to be
  * converted to RGBA32 and then passed to the external callback for modifications if required.
  */
-public class JavaCameraView extends CameraBridgeViewBase implements PreviewCallback {
+public class JavaCameraView extends CameraBridgeViewBase implements PreviewCallback, Camera.PictureCallback {
 
     private static final int MAGIC_TEXTURE_ID = 10;
     private static final String TAG = "JavaCameraView";
@@ -37,11 +38,42 @@ public class JavaCameraView extends CameraBridgeViewBase implements PreviewCallb
     private int mChainIdx = 0;
     private Thread mThread;
     private boolean mStopThread;
+    private String mPictureFileName;
 
     protected Camera mCamera;
     protected JavaCameraFrame[] mCameraFrame;
     private SurfaceTexture mSurfaceTexture;
     private int mPreviewFormat = ImageFormat.NV21;
+
+    public void takePicture(final String fileName) {
+        Log.i(TAG, "Taking picture");
+        this.mPictureFileName = fileName;
+        // Postview and jpeg are sent in the same buffers if the queue is not empty when performing a capture.
+        // Clear up buffers to avoid mCamera.takePicture to be stuck because of a memory issue
+        mCamera.setPreviewCallback(null);
+
+        // PictureCallback is implemented by the current class
+        mCamera.takePicture(null, null, this);
+    }
+
+    @Override
+    public void onPictureTaken(byte[] data, Camera camera) {
+        // The camera preview was automatically stopped. Start it again.
+        mCamera.startPreview();
+        mCamera.setPreviewCallback(this);
+
+        // Write the image in a file (in jpeg format)
+        try {
+            FileOutputStream fos = new FileOutputStream(mPictureFileName);
+
+            fos.write(data);
+            fos.close();
+
+        } catch (java.io.IOException e) {
+            Log.e("PictureDemo", "Exception in photoCallback", e);
+        }
+
+    }
 
     public static class JavaCameraSizeAccessor implements ListItemAccessor {
 
